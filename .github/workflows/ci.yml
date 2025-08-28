@@ -22,15 +22,14 @@ jobs:
 
       - name: Start app (background) and wait until ready
         run: |
-          cd app
-          nohup npm start >/dev/null 2>&1 &
-          echo $! > ../app.pid
-          # wait up to ~20s for the server
-          for i in {1..20}; do
-            curl -fsS http://localhost:3000/ >/dev/null && break
+          node app/server.js &
+          echo $! > app.pid
+          # wait up to ~30s for server to respond
+          for i in {1..30}; do
+            curl -fsS http://127.0.0.1:3000/ >/dev/null && break
             sleep 1
           done
-          curl -fsS http://localhost:3000/  # final sanity check
+          curl -fsS http://127.0.0.1:3000/
 
       - name: Run tests
         working-directory: app
