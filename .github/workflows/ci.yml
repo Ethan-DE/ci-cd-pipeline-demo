@@ -11,22 +11,35 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: "18"
-      - name: Install
+
+      - name: Install deps
         working-directory: app
         run: npm ci || npm install
-      - name: Start app in background
+
+      - name: Start app (background) and wait until ready
         run: |
-          node app/server.js &
-          echo $! > app.pid
-          sleep 1
+          cd app
+          nohup npm start >/dev/null 2>&1 &
+          echo $! > ../app.pid
+          # wait up to ~20s for the server
+          for i in {1..20}; do
+            curl -fsS http://localhost:3000/ >/dev/null && break
+            sleep 1
+          done
+          curl -fsS http://localhost:3000/  # final sanity check
+
       - name: Run tests
         working-directory: app
         run: npm test
+
       - name: Stop app
-        run: kill $(cat app.pid)
+        if: always()
+        run: |
+          if [ -f app.pid ]; then kill "$(cat app.pid)" || true; fi
 
   docker-build:
     runs-on: ubuntu-latest
