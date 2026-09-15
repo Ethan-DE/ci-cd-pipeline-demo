@@ -1,0 +1,21 @@
+{{- if .Values.monitoring.prometheusRule.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "status-api.fullname" . }}
+  labels:
+    {{- with .Values.monitoring.prometheusRule.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  groups:
+    - name: status-api
+      rules:
+        - alert: StatusApiTargetMissing
+          expr: absent(status_api_build_info{namespace="{{ .Release.Namespace }}"})
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: status-api metrics are no longer being scraped
+{{- end }}

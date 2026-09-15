@@ -1,3 +1,13 @@
-node_modules
+node_modules/
 npm-debug.log*
 app.pid
+.env
+
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+infra/terraform/terraform.tfvars
+
+ansible/inventory.ini
+.DS_Store

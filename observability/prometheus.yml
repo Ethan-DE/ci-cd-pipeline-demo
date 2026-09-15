@@ -1,0 +1,8 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: status-api
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["status-api:3000"]

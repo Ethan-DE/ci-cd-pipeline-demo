@@ -1,0 +1,14 @@
+.git
+.github
+.gitignore
+infra
+ansible
+argocd
+helm
+docs
+observability
+scripts
+*.md
+Jenkinsfile
+compose.yaml
+Makefile

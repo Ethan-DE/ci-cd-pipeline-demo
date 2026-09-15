@@ -1,50 +1,127 @@
-name: CI
+name: ci
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [main]
   pull_request:
-    branches: [ "main" ]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
-  build-test:
+  app:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
-          node-version: "18"
+          node-version: "22"
 
-      - name: Install deps
-        working-directory: app
-        run: npm ci || npm install
+      - name: Check JavaScript syntax
+        run: npm --prefix app run check
 
-      - name: Start app (background) and wait until ready
+      - name: Start service
         run: |
-          node app/server.js &
-          echo $! > app.pid
-          # wait up to ~30s for server to respond
-          for i in {1..30}; do
-            curl -fsS http://127.0.0.1:3000/ >/dev/null && break
+          APP_VERSION=${GITHUB_SHA::12} node app/server.js > /tmp/status-api.log 2>&1 &
+          echo $! > /tmp/status-api.pid
+          for i in {1..20}; do
+            curl -fsS http://127.0.0.1:3000/ready && exit 0
             sleep 1
           done
-          curl -fsS http://127.0.0.1:3000/
+          cat /tmp/status-api.log
+          exit 1
 
       - name: Run tests
-        working-directory: app
-        run: npm test
+        run: npm --prefix app test
 
-      - name: Stop app
+      - name: Smoke test
+        run: ./scripts/smoke.sh
+
+      - name: Stop service
         if: always()
-        run: |
-          if [ -f app.pid ]; then kill "$(cat app.pid)" || true; fi
+        run: kill "$(cat /tmp/status-api.pid)" 2>/dev/null || true
 
-  docker-build:
+  container:
     runs-on: ubuntu-latest
-    needs: build-test
+    needs: app
     steps:
       - uses: actions/checkout@v4
-      - name: Build Docker image
-        run: docker build -t hello-ci:latest .
+
+      - name: Build image
+        run: docker build -t status-api:${{ github.sha }} .
+
+      - name: Smoke test image
+        run: |
+          docker run -d --rm --name status-api -p 3000:3000 status-api:${{ github.sha }}
+          for i in {1..20}; do
+            curl -fsS http://127.0.0.1:3000/ready && break
+            sleep 1
+          done
+          ./scripts/smoke.sh
+
+      - name: Scan image
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: status-api:${{ github.sha }}
+          format: table
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
+      - name: Container logs
+        if: failure()
+        run: docker logs status-api || true
+
+  config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scan Terraform configuration
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: infra/terraform
+          scanners: misconfig,secret
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+
+      - name: Scan Helm configuration
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: helm/status-api
+          scanners: misconfig,secret
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Lint Helm chart
+        run: helm lint helm/status-api --set image.tag=ci
+
+      - name: Install Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform format
+        run: terraform -chdir=infra/terraform fmt -check -diff -recursive
+
+      - name: Terraform init
+        run: terraform -chdir=infra/terraform init -backend=false
+
+      - name: Terraform validate
+        run: terraform -chdir=infra/terraform validate
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Check Ansible syntax
+        run: |
+          python -m pip install --disable-pip-version-check ansible-core
+          ansible-playbook -i ansible/inventory.example.ini ansible/deploy.yml --syntax-check
+
+      - name: Shellcheck migration scripts
+        run: shellcheck scripts/*.sh

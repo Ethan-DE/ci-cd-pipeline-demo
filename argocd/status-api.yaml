@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: status-api
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/Ethan-DE/ci-cd-pipeline-demo.git
+    targetRevision: main
+    path: helm/status-api
+    helm:
+      values: |
+        image:
+          repository: ghcr.io/ethan-de/status-api
+          tag: latest
+        monitoring:
+          serviceMonitor:
+            enabled: true
+          prometheusRule:
+            enabled: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: status-api
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
