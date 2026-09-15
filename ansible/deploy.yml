@@ -1,0 +1,75 @@
+---
+- name: Deploy status-api on an Ubuntu VM
+  hosts: app
+  become: true
+
+  handlers:
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Reload nginx
+      ansible.builtin.service:
+        name: nginx
+        state: reloaded
+
+  tasks:
+    - name: Install Docker and Nginx
+      ansible.builtin.apt:
+        name:
+          - docker.io
+          - nginx
+        state: present
+        update_cache: true
+
+    - name: Enable Docker
+      ansible.builtin.service:
+        name: docker
+        enabled: true
+        state: started
+
+    - name: Install status-api systemd unit
+      ansible.builtin.template:
+        src: templates/status-api.service.j2
+        dest: /etc/systemd/system/status-api.service
+        mode: "0644"
+      notify: Reload systemd
+
+    - name: Install Nginx virtual host
+      ansible.builtin.template:
+        src: templates/nginx-status-api.conf.j2
+        dest: /etc/nginx/sites-available/status-api
+        mode: "0644"
+      notify: Reload nginx
+
+    - name: Enable Nginx virtual host
+      ansible.builtin.file:
+        src: /etc/nginx/sites-available/status-api
+        dest: /etc/nginx/sites-enabled/status-api
+        state: link
+      notify: Reload nginx
+
+    - name: Remove default Nginx site
+      ansible.builtin.file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+      notify: Reload nginx
+
+    - name: Validate Nginx configuration
+      ansible.builtin.command: nginx -t
+      changed_when: false
+
+    - name: Apply pending handlers before starting the service
+      ansible.builtin.meta: flush_handlers
+
+    - name: Ensure Nginx is enabled
+      ansible.builtin.service:
+        name: nginx
+        enabled: true
+        state: started
+
+    - name: Start status-api
+      ansible.builtin.service:
+        name: status-api
+        enabled: true
+        state: restarted

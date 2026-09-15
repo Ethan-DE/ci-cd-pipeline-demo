@@ -1,0 +1,2 @@
+status_api_image: ghcr.io/ethan-de/status-api:latest
+status_api_server_name: _

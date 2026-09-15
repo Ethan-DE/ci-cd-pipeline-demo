@@ -1,0 +1,4 @@
+# terraform-aws-eks enables all outbound node traffic in its recommended rules.
+# This project uses a NAT gateway for image pulls and AWS API access, so this one
+# module-level egress finding is accepted. Workload ingress remains restricted.
+AVD-AWS-0104

@@ -1,0 +1,17 @@
+[Unit]
+Description=status-api container
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Restart=always
+RestartSec=5
+ExecStartPre=-/usr/bin/docker rm -f status-api
+ExecStartPre=/usr/bin/docker pull {{ status_api_image }}
+ExecStart=/usr/bin/docker run --name status-api --read-only --cap-drop=ALL --pids-limit=100 -e APP_VERSION=vm -p 127.0.0.1:3000:3000 {{ status_api_image }}
+ExecStop=/usr/bin/docker stop -t 10 status-api
+TimeoutStopSec=20
+
+[Install]
+WantedBy=multi-user.target

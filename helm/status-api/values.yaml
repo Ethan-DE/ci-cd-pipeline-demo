@@ -1,0 +1,70 @@
+replicaCount: 2
+
+image:
+  repository: ghcr.io/ethan-de/status-api
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 80
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 32Mi
+  limits:
+    cpu: 250m
+    memory: 128Mi
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
+
+probes:
+  startup:
+    path: /health
+    failureThreshold: 15
+    periodSeconds: 2
+  readiness:
+    path: /ready
+    periodSeconds: 5
+  liveness:
+    path: /health
+    periodSeconds: 10
+
+pdb:
+  enabled: true
+  minAvailable: 1
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 70
+
+ingress:
+  enabled: false
+  className: nginx
+  host: status-api.example.com
+  annotations: {}
+
+monitoring:
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    additionalLabels: {}
+  prometheusRule:
+    enabled: false
+    additionalLabels: {}
+
+networkPolicy:
+  enabled: false

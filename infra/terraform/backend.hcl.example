@@ -1,0 +1,5 @@
+bucket       = "replace-with-your-terraform-state-bucket"
+key          = "status-api/dev/terraform.tfstate"
+region       = "eu-central-1"
+encrypt      = true
+use_lockfile = true
